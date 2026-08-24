@@ -113,8 +113,14 @@ export default function Footer() {
                 <li key={c.path}>
                   <Link 
                     to={c.path} 
-                    onClick={(e) => e.preventDefault()}
-                    className="text-white/40 no-underline text-sm cursor-not-allowed"
+                    onClick={(e) => {
+                      if (c.path !== '/contact') {
+                        e.preventDefault()
+                      }
+                    }}
+                    className={`no-underline text-sm transition-colors ${
+                      c.path === '/contact' ? 'text-white/70 hover:text-primary cursor-pointer' : 'text-white/40 cursor-not-allowed'
+                    }`}
                   >
                     {c.label}
                   </Link>
@@ -130,7 +136,7 @@ export default function Footer() {
               <a href="mailto:service@digitalwebconnection.com" className="text-white/60 no-underline text-sm transition-colors hover:text-primary break-all">
                 service@digitalwebconnection.com
               </a>
-              <a href="tel:+919876543210" className="text-white/60 no-underline text-sm transition-colors hover:text-primary">
+              <a href="tel:+919998204044" className="text-white/60 no-underline text-sm transition-colors hover:text-primary">
                 +91 99982 04044
               </a>
               <a
@@ -139,7 +145,7 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 className="text-white/60 no-underline text-sm transition-colors hover:text-primary"
               >
-                B-1103, Tittanium city center, Prahladnagar, Ahmedabad, Gujarat, India
+                B-1103, Titanium City Center, Prahladnagar, Ahmedabad, Gujarat, India
               </a>
             </div>
           </div>

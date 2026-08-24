@@ -5,12 +5,102 @@ import contact3dVisual from '../assets/ChatGPT_Image_Jun_25__2026__12_41_38_PM-r
 
 const services = ['Search Engine Optimization', 'Social Media Marketing', 'Pay-Per-Click (PPC)', 'Meta Ads', 'LinkedIn Marketing', 'Website Development', 'Graphic Design', 'Content Marketing', 'Other']
 
+interface ContactErrors {
+  firstName?: string
+  lastName?: string
+  email?: string
+  phone?: string
+  company?: string
+  service?: string
+  message?: string
+}
+
 export default function Contact() {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', company: '', service: '', message: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', company: '', service: '', message: '' })
+  const [errors, setErrors] = useState<ContactErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [responseMsg, setResponseMsg] = useState('')
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [isHovered, setIsHovered] = useState(false)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
+  const validateField = (field: string, value: string): string | undefined => {
+    switch (field) {
+      case 'firstName':
+        if (!value.trim()) return 'First Name is required.'
+        if (value.trim().length < 2) return 'First Name must be at least 2 characters.'
+        return undefined
+      case 'lastName':
+        if (!value.trim()) return 'Last Name is required.'
+        if (value.trim().length < 2) return 'Last Name must be at least 2 characters.'
+        return undefined
+      case 'email':
+        if (!value.trim()) return 'Email Address is required.'
+        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value.trim())) {
+          return 'Please enter a valid email address (e.g. name@domain.com).'
+        }
+        return undefined
+      case 'phone': {
+        if (!value.trim()) return 'Phone number is required.'
+        const digitsOnly = value.replace(/\D/g, '')
+        if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+          return 'Please enter a valid 10-digit phone number.'
+        }
+        return undefined
+      }
+      case 'message':
+        if (!value.trim()) return 'Project requirements / message is required.'
+        if (value.trim().length < 5) return 'Message must be at least 5 characters.'
+        return undefined
+      default:
+        return undefined
+    }
+  }
+
+  const validateAll = (): boolean => {
+    const newErrors: ContactErrors = {}
+    const fnErr = validateField('firstName', form.firstName)
+    if (fnErr) newErrors.firstName = fnErr
+
+    const lnErr = validateField('lastName', form.lastName)
+    if (lnErr) newErrors.lastName = lnErr
+
+    const emailErr = validateField('email', form.email)
+    if (emailErr) newErrors.email = emailErr
+
+    const phoneErr = validateField('phone', form.phone)
+    if (phoneErr) newErrors.phone = phoneErr
+
+    const msgErr = validateField('message', form.message)
+    if (msgErr) newErrors.message = msgErr
+
+    setErrors(newErrors)
+    setTouched({
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      company: true,
+      service: true,
+      message: true
+    })
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    const error = validateField(field, (form as any)[field] || '')
+    setErrors(prev => ({ ...prev, [field]: error }))
+  }
+
+  const handleChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      const error = validateField(field, value)
+      setErrors(prev => ({ ...prev, [field]: error }))
+    }
+  }
 
   const handleHeroMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     const { clientX, clientY, currentTarget } = e
@@ -24,29 +114,60 @@ export default function Contact() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!validateAll()) {
+      return
+    }
+
     setStatus('loading')
+    setResponseMsg('')
     try {
-      const target = e.target as HTMLFormElement
-      const formData = new FormData(target)
-      // Combine first + last name into a single "name" field for Web3Forms
-      formData.set('name', `${form.firstName} ${form.lastName}`.trim())
-      formData.append('access_key', 'a825aac6-7cd8-4618-b763-f274d1f0d081')
+      const accessKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || 'a825aac6-7cd8-4618-b763-f274d1f0d081'
       const response = await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: accessKey,
+          name: `${form.firstName} ${form.lastName}`.trim(),
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          company: form.company.trim() || 'N/A',
+          service: form.service || 'General Inquiry',
+          message: form.message.trim(),
+          subject: `New Contact Inquiry from ${form.firstName} ${form.lastName}`.trim() || 'New Contact Inquiry - DWC Website',
+          from_name: 'DWC Website Contact Form',
+        }),
       })
       const data = await response.json()
       if (data.success) {
         setStatus('success')
-        setForm({ firstName: '', lastName: '', email: '', company: '', service: '', message: '' })
-        setTimeout(() => setStatus('idle'), 3000)
+        setResponseMsg('Thank you! Your message has been sent successfully. We will get back to you shortly.')
+        setForm({ firstName: '', lastName: '', email: '', phone: '', company: '', service: '', message: '' })
+        setErrors({})
+        setTouched({})
+        setTimeout(() => {
+          setStatus('idle')
+          setResponseMsg('')
+        }, 5000)
       } else {
         setStatus('error')
-        setTimeout(() => setStatus('idle'), 4000)
+        setResponseMsg(data.message || 'Submission failed. Please check your details and try again.')
+        setTimeout(() => {
+          setStatus('idle')
+          setResponseMsg('')
+        }, 6000)
       }
     } catch {
       setStatus('error')
-      setTimeout(() => setStatus('idle'), 4000)
+      setResponseMsg('Network connection error. Please try again later.')
+      setTimeout(() => {
+        setStatus('idle')
+        setResponseMsg('')
+      }, 6000)
     }
   }
 
@@ -117,7 +238,7 @@ export default function Contact() {
             {/* CTA Buttons */}
             <div data-aos="fade-up" data-aos-delay="150" className="flex flex-col sm:flex-row gap-4">
               <a
-                href="tel:+919876543210"
+                href="tel:+919998204044"
                 className="inline-flex items-center gap-2 bg-brand-gradient text-dark font-display font-semibold px-7 py-3.5 rounded-full shadow-[0_0_25px_rgba(4,185,202,0.3)] hover:shadow-[0_0_40px_rgba(4,185,202,0.55)] hover:-translate-y-0.5 transition-all duration-300 shimmer-btn"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
@@ -166,7 +287,7 @@ export default function Contact() {
                     </svg>
                   ),
                   label: 'Office Address',
-                  value: 'B-1103, Titanium City Center, Prahladnagar, Ahmedabad, Gujarat, India — 380015'
+                  value: 'B-1103, Titanium City Center, Prahladnagar, Ahmedabad, Gujarat, India'
                 },
                 {
                   icon: (
@@ -181,11 +302,11 @@ export default function Contact() {
                 {
                   icon: (
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z" />
                     </svg>
                   ),
                   label: 'Phone',
-                  value: '+91 98765 43210'
+                  value: '+91 99982 04044'
                 },
                 {
                   icon: (
@@ -243,62 +364,224 @@ export default function Contact() {
               className="contact-form-container bg-white/5 backdrop-blur-xl border border-white/10 rounded-[20px] p-8 md:p-12 shadow-[0_0_50px_rgba(4,185,202,0.1)] relative z-10"
             >
               {/* Hidden Web3Forms honeypot to prevent spam */}
-              <input type="checkbox" name="botcheck" className="hidden" />
+              <input type="checkbox" name="botcheck" className="hidden" style={{ display: 'none' }} />
+              
               <div className="grid gap-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="relative group">
                     <input
-                      className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent"
-                      type="text" name="first_name" placeholder="First Name" required value={form.firstName} onChange={e => setForm(s => ({ ...s, firstName: e.target.value }))} id="first-name"
+                      className={`peer w-full bg-black/20 border rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:bg-black/40 placeholder-transparent ${
+                        touched.firstName && errors.firstName
+                          ? 'border-rose-500/70 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                          : 'border-white/10 focus:border-cyan focus:ring-4 focus:ring-cyan/10'
+                      }`}
+                      type="text"
+                      name="first_name"
+                      placeholder="First Name"
+                      value={form.firstName}
+                      onChange={e => handleChange('firstName', e.target.value)}
+                      onBlur={() => handleBlur('firstName')}
+                      id="first-name"
                     />
-                    <label className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="first-name">First Name</label>
+                    <label
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] ${
+                        touched.firstName && errors.firstName
+                          ? 'text-rose-400 peer-focus:text-rose-400 peer-[:not(:placeholder-shown)]:text-rose-400'
+                          : 'text-white/50 peer-focus:text-cyan peer-[:not(:placeholder-shown)]:text-cyan'
+                      }`}
+                      htmlFor="first-name"
+                    >
+                      First Name *
+                    </label>
+                    {touched.firstName && errors.firstName && (
+                      <p className="text-rose-400 text-xs mt-1.5 pl-1 flex items-center gap-1 font-mono">
+                        <span>⚠</span> {errors.firstName}
+                      </p>
+                    )}
                   </div>
                   <div className="relative group">
                     <input
-                      className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent"
-                      type="text" name="last_name" placeholder="Last Name" required value={form.lastName} onChange={e => setForm(s => ({ ...s, lastName: e.target.value }))} id="last-name"
+                      className={`peer w-full bg-black/20 border rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:bg-black/40 placeholder-transparent ${
+                        touched.lastName && errors.lastName
+                          ? 'border-rose-500/70 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                          : 'border-white/10 focus:border-cyan focus:ring-4 focus:ring-cyan/10'
+                      }`}
+                      type="text"
+                      name="last_name"
+                      placeholder="Last Name"
+                      value={form.lastName}
+                      onChange={e => handleChange('lastName', e.target.value)}
+                      onBlur={() => handleBlur('lastName')}
+                      id="last-name"
                     />
-                    <label className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="last-name">Last Name</label>
+                    <label
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] ${
+                        touched.lastName && errors.lastName
+                          ? 'text-rose-400 peer-focus:text-rose-400 peer-[:not(:placeholder-shown)]:text-rose-400'
+                          : 'text-white/50 peer-focus:text-cyan peer-[:not(:placeholder-shown)]:text-cyan'
+                      }`}
+                      htmlFor="last-name"
+                    >
+                      Last Name *
+                    </label>
+                    {touched.lastName && errors.lastName && (
+                      <p className="text-rose-400 text-xs mt-1.5 pl-1 flex items-center gap-1 font-mono">
+                        <span>⚠</span> {errors.lastName}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="relative group">
-                  <input
-                    className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent"
-                    type="email" name="email" placeholder="Email" required value={form.email} onChange={e => setForm(s => ({ ...s, email: e.target.value }))} id="contact-email-main"
-                  />
-                  <label className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="contact-email-main">Email Address</label>
-                </div>
-                <div className="relative group">
-                  <input
-                    className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent"
-                    type="text" name="company" placeholder="Company" value={form.company} onChange={e => setForm(s => ({ ...s, company: e.target.value }))} id="company-name"
-                  />
-                  <label className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="company-name">Your Company Name</label>
-                </div>
-                <div className="relative group">
-                  <select
-                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-4 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 appearance-none"
-                    name="service" value={form.service} onChange={e => setForm(s => ({ ...s, service: e.target.value }))} id="service-select"
-                  >
-                    <option value="" className="text-dark bg-white">Select a Service</option>
-                    {services.map(s => <option key={s} value={s} className="text-dark bg-white">{s}</option>)}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="relative group">
+                    <input
+                      className={`peer w-full bg-black/20 border rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:bg-black/40 placeholder-transparent ${
+                        touched.email && errors.email
+                          ? 'border-rose-500/70 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                          : 'border-white/10 focus:border-cyan focus:ring-4 focus:ring-cyan/10'
+                      }`}
+                      type="email"
+                      name="email"
+                      placeholder="Email"
+                      value={form.email}
+                      onChange={e => handleChange('email', e.target.value)}
+                      onBlur={() => handleBlur('email')}
+                      id="contact-email-main"
+                    />
+                    <label
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] ${
+                        touched.email && errors.email
+                          ? 'text-rose-400 peer-focus:text-rose-400 peer-[:not(:placeholder-shown)]:text-rose-400'
+                          : 'text-white/50 peer-focus:text-cyan peer-[:not(:placeholder-shown)]:text-cyan'
+                      }`}
+                      htmlFor="contact-email-main"
+                    >
+                      Email Address *
+                    </label>
+                    {touched.email && errors.email && (
+                      <p className="text-rose-400 text-xs mt-1.5 pl-1 flex items-center gap-1 font-mono">
+                        <span>⚠</span> {errors.email}
+                      </p>
+                    )}
+                  </div>
+                  <div className="relative group">
+                    <input
+                      className={`peer w-full bg-black/20 border rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:bg-black/40 placeholder-transparent ${
+                        touched.phone && errors.phone
+                          ? 'border-rose-500/70 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                          : 'border-white/10 focus:border-cyan focus:ring-4 focus:ring-cyan/10'
+                      }`}
+                      type="tel"
+                      name="phone"
+                      placeholder="Phone"
+                      value={form.phone}
+                      onChange={e => handleChange('phone', e.target.value)}
+                      onBlur={() => handleBlur('phone')}
+                      id="contact-phone-main"
+                    />
+                    <label
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] ${
+                        touched.phone && errors.phone
+                          ? 'text-rose-400 peer-focus:text-rose-400 peer-[:not(:placeholder-shown)]:text-rose-400'
+                          : 'text-white/50 peer-focus:text-cyan peer-[:not(:placeholder-shown)]:text-cyan'
+                      }`}
+                      htmlFor="contact-phone-main"
+                    >
+                      Phone Number *
+                    </label>
+                    {touched.phone && errors.phone && (
+                      <p className="text-rose-400 text-xs mt-1.5 pl-1 flex items-center gap-1 font-mono">
+                        <span>⚠</span> {errors.phone}
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="relative group">
+                    <input
+                      className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent"
+                      type="text"
+                      name="company"
+                      placeholder="Company"
+                      value={form.company}
+                      onChange={e => handleChange('company', e.target.value)}
+                      id="company-name"
+                    />
+                    <label className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="company-name">
+                      Your Company Name (Optional)
+                    </label>
+                  </div>
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-4 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 appearance-none cursor-pointer"
+                      name="service"
+                      value={form.service}
+                      onChange={e => handleChange('service', e.target.value)}
+                      id="service-select"
+                    >
+                      <option value="" className="text-dark bg-white">Select a Service (Optional)</option>
+                      {services.map(s => <option key={s} value={s} className="text-dark bg-white">{s}</option>)}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="relative group">
                   <textarea
-                    className="peer w-full bg-black/20 border border-white/10 rounded-xl px-4 pt-8 pb-2 text-white text-sm outline-none transition-all duration-300 focus:border-cyan focus:bg-black/40 focus:ring-4 focus:ring-cyan/10 placeholder-transparent min-h-[120px] resize-y"
-                    name="message" placeholder="Project Requirements" rows={4} value={form.message} onChange={e => setForm(s => ({ ...s, message: e.target.value }))} id="project-message"
+                    className={`peer w-full bg-black/20 border rounded-xl px-4 pt-8 pb-2 text-white text-sm outline-none transition-all duration-300 focus:bg-black/40 min-h-[120px] resize-y placeholder-transparent ${
+                      touched.message && errors.message
+                        ? 'border-rose-500/70 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                        : 'border-white/10 focus:border-cyan focus:ring-4 focus:ring-cyan/10'
+                    }`}
+                    name="message"
+                    placeholder="Project Requirements"
+                    rows={4}
+                    value={form.message}
+                    onChange={e => handleChange('message', e.target.value)}
+                    onBlur={() => handleBlur('message')}
+                    id="project-message"
                   />
-                  <label className="absolute left-4 top-6 -translate-y-1/2 text-white/50 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-focus:text-cyan peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] peer-[:not(:placeholder-shown)]:text-cyan" htmlFor="project-message">About Your Project Requirements</label>
+                  <label
+                    className={`absolute left-4 top-6 -translate-y-1/2 text-sm transition-all duration-300 pointer-events-none peer-focus:top-3 peer-focus:translate-y-0 peer-focus:text-[0.7rem] peer-[:not(:placeholder-shown)]:top-3 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.7rem] ${
+                      touched.message && errors.message
+                        ? 'text-rose-400 peer-focus:text-rose-400 peer-[:not(:placeholder-shown)]:text-rose-400'
+                        : 'text-white/50 peer-focus:text-cyan peer-[:not(:placeholder-shown)]:text-cyan'
+                    }`}
+                    htmlFor="project-message"
+                  >
+                    About Your Project Requirements *
+                  </label>
+                  {touched.message && errors.message && (
+                    <p className="text-rose-400 text-xs mt-1.5 pl-1 flex items-center gap-1 font-mono">
+                      <span>⚠</span> {errors.message}
+                    </p>
+                  )}
                 </div>
+
+                {responseMsg && (
+                  <div
+                    className={`p-4 rounded-xl text-sm font-medium transition-all duration-300 flex items-start gap-3 ${
+                      status === 'success'
+                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                        : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.15)]'
+                    }`}
+                  >
+                    {status === 'success' ? (
+                      <svg className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    )}
+                    <span className="leading-relaxed">{responseMsg}</span>
+                  </div>
+                )}
 
                 <button
                   type="submit"
                   disabled={status === 'loading' || status === 'success'}
-                  className={`w-full p-4 rounded-xl font-display font-semibold text-base transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden shadow-lg group
+                  className={`w-full p-4 rounded-xl font-display font-semibold text-base transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden shadow-lg group cursor-pointer
                     ${status === 'success' ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white' :
                     status === 'error' ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white' :
                     'bg-brand-gradient text-dark hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(4,185,202,0.4)]'}`}
@@ -335,22 +618,7 @@ export default function Contact() {
           </div>
         </div>
 
-        {/* Full-width Google Map */}
-        <div
-          data-aos="fade-up"
-          className="mt-16 rounded-xl overflow-hidden border border-white/10 h-[400px] bg-zinc-950/60 shadow-2xl relative"
-        >
-          <iframe
-            src="https://maps.google.com/maps?q=Titanium+City+Center+-+Corporate+Offices,+Prahladnagar,+Ahmedabad,+Gujarat,+India&t=&z=17&ie=UTF8&iwloc=&output=embed"
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            title="Office Location Map"
-          />
-        </div>
+     
       </section>
 
       <FAQ />

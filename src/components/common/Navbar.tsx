@@ -41,7 +41,7 @@ export default function Navbar() {
   useEffect(() => { setMobileOpen(false) }, [location])
 
   const isBlocked = (label: string) => {
-    return label !== 'Home';
+    return label !== 'Home' && label !== 'Contact';
   }
 
   return (
@@ -135,7 +135,7 @@ export default function Navbar() {
                   className={`font-body font-medium text-sm px-4 py-2 rounded-lg transition-all duration-200
                     ${isBlocked(link.label) 
                       ? 'cursor-not-allowed text-white/40' 
-                      : (location.pathname === link.path ? 'text-primary' : 'text-white/85 hover:bg-white/5')}`}
+                      : (location.pathname === link.path ? 'text-primary font-semibold' : 'text-white/85 hover:bg-white/5')}`}
                 >
                   {link.label}
                 </Link>
@@ -147,9 +147,8 @@ export default function Navbar() {
           <div className="hidden lg:flex">
             <Link
               to="/contact"
-              onClick={(e) => e.preventDefault()}
               data-cursor="button"
-              className="bg-brand-gradient text-dark font-display font-semibold text-[0.875rem] px-6 py-2.5 rounded-full no-underline transition-all duration-200 cursor-not-allowed opacity-50"
+              className="bg-brand-gradient text-dark font-display font-semibold text-[0.875rem] px-6 py-2.5 rounded-full no-underline transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(13,94,246,0.5)] shadow-[0_4px_20px_rgba(13,94,246,0.35)] cursor-pointer"
             >
               Get Free Consultation
             </Link>
@@ -191,7 +190,7 @@ export default function Navbar() {
                 }
               }}
               className={`no-underline font-display font-bold text-[clamp(1.8rem,6vw,2.8rem)] transition-all duration-400
-                ${isBlocked(link.label) ? 'cursor-not-allowed text-white/30' : 'text-white hover:text-primary'}
+                ${isBlocked(link.label) ? 'cursor-not-allowed text-white/30' : (location.pathname === link.path ? 'text-primary' : 'text-white hover:text-primary')}
                 ${mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
               style={{ transitionDelay: `${i * 0.05}s` }}
             >
@@ -200,8 +199,8 @@ export default function Navbar() {
           ))}
           <Link
             to="/contact"
-            onClick={(e) => e.preventDefault()}
-            className={`mt-6 bg-brand-gradient text-dark font-display font-bold px-8 py-3.5 rounded-full no-underline transition-all duration-400 cursor-not-allowed opacity-50
+            onClick={() => setMobileOpen(false)}
+            className={`mt-6 bg-brand-gradient text-dark font-display font-bold px-8 py-3.5 rounded-full no-underline transition-all duration-400 hover:scale-105 active:scale-95 cursor-pointer
               ${mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
             style={{ transitionDelay: `${navLinks.length * 0.05}s` }}
           >
